@@ -1,3 +1,4 @@
+from fileinput import filename
 import os
 import torch
 import torchaudio
@@ -10,11 +11,8 @@ DURATION = 30
 NUM_SAMPLES = SAMPLE_RATE * DURATION
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"🎧 Using device: {device}")
 
-# ===============================
-# 🎛️ Khởi tạo các transform
-# ===============================
+# Khởi tạo các transform
 mel_spec = torchaudio.transforms.MelSpectrogram(
     sample_rate=SAMPLE_RATE,
     n_fft=1024,
@@ -28,10 +26,7 @@ mfcc_transform = torchaudio.transforms.MFCC(
     melkwargs={"n_fft": 1024, "hop_length": 512, "n_mels": 64}
 ).to(device)
 
-
-# ===============================
-# ⚙️ HÀM TRÍCH XUẤT ĐẶC TRƯNG
-# ===============================
+# HÀM TRÍCH XUẤT ĐẶC TRƯNG
 def extract_features(file_path):
     waveform, sr = torchaudio.load(file_path)
     waveform = waveform.to(device)
@@ -101,12 +96,8 @@ def extract_features(file_path):
 
     return features
 
-
-# ===============================
-# 📦 XỬ LÝ TOÀN BỘ DỮ LIỆU
-# ===============================
-data = []
-labels = []
+# XỬ LÝ TOÀN BỘ DỮ LIỆU
+data, labels, filenames = [], [], []
 genres = sorted(os.listdir(DATA_DIR))
 
 for label, genre in enumerate(genres):
@@ -120,11 +111,24 @@ for label, genre in enumerate(genres):
             feats = extract_features(path)
             data.append(feats)
             labels.append(label)
+            filenames.append(file_name)
 
-# ===============================
-# 💾 LƯU RA CSV
-# ===============================
-df = pd.DataFrame(data)
+# --- Tạo tên cột ---
+mfcc_cols = [f"mfcc_{i+1}" for i in range(40)]
+mel_cols = [f"mel_{i+1}" for i in range(64)]
+other_cols = ["spectral_centroid_mean", "zero_crossing_rate", "spectral_rolloff"]
+feature_names = mfcc_cols + mel_cols + other_cols
+
+# --- Tạo DataFrame ---
+df = pd.DataFrame(data, columns=feature_names)
+df["filename"] = filenames
 df["label"] = labels
+
+# --- Sắp xếp lại thứ tự cột ---
+cols = ["filename"] + feature_names + ["label"]
+df = df[cols]
+
+# --- Lưu ra CSV ---
 df.to_csv("music_features.csv", index=False)
-print("💾 Saved torchaudio features → music_features.csv")
+print("Saved torchaudio features → music_features_named.csv")
+
